@@ -1,0 +1,7 @@
+flask==3.0.0
+flask-socketio==5.3.6
+waitress==2.1.2
+python-dotenv==1.0.0
+ultralytics==8.0.230
+opencv-python==4.8.1.78
+onnxruntime_directml==1.16.3
