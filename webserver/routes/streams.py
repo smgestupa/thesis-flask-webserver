@@ -79,7 +79,7 @@ def create_frame(camera_id, image):
     with open(f'{path}/{int(time.time() * 1000)}.jpeg', 'wb') as file:
         file.write(image)
 
-def get_stream_thread(camera_id):
+def videostreams_get_thread(stream_name, ip_address):
     while True:
         start = time.time()
 
@@ -90,10 +90,13 @@ def get_stream_thread(camera_id):
         retry = 0
         while (retry < 3):
             try:
-                frame = session.get(fr'http://{camera_webserver}:{camera_port}/jpg', timeout=10).content
+                frame = session.get(ip_address, timeout=10).content
             except:
                 raw_image = None
-                print(f'Could not retrieve image from http://{camera_webserver}:{camera_port}. Retrying for {retry + 1} time(s)...')
+                message = f'Could not retrieve image from {ip_address}. Retrying for {retry + 1} time(s)...'
+
+                print(message)
+                socketio.emit(f'{stream_name}_console', message)
             
             retry += 1
 
@@ -101,16 +104,12 @@ def get_stream_thread(camera_id):
             message = f'Could not retrieve stream from Camera {camera_id}.'
 
             print(message)
-
-            socketio.emit(f'error_stream_{camera_id}', {'message': message})
+            socketio.emit(f'{stream_name}_console', message)
+            socketio.emit(f'{stream_name}_stop', "true")
 
             thread = None
 
             break
-
-        print('Image type:', type(raw_image))
-
-        break
 
         image_bytes = np.asarray(raw_image, dtype=np.uint8)
         image = cv2.imread(image_bytes, cv2.IMREAD_COLOR)
@@ -125,9 +124,8 @@ def get_stream_thread(camera_id):
             _, buffer = cv2.imencode('.jpeg', new_image)
         except:
             message = 'File could not be converted into an image.'
+            socketio.emit(f'{stream_name}_console', message)
             
-            socketio.emit(f'error_stream_{camera_id}', {'message': message})
-
             thread = None
 
             break
@@ -143,7 +141,7 @@ def get_stream_thread(camera_id):
         data = json.dumps({
             'data': {
                 'total_objects': total_objs,
-                'labels': detected_labels,
+                'detected_labels': detected_labels,
                 'latency': time.time() - start
             },
             'image': b64_image
@@ -151,19 +149,19 @@ def get_stream_thread(camera_id):
 
         print(time.time() - start)
 
-        socketio.emit(f'get_stream_{camera_id}', data)
+        socketio.emit(f'{stream_name}_stream', data)
 
-        socketio.sleep(0.03)
+        socketio.sleep(0.30)
 
-@socketio.on('get_stream')
-def handle_get_stream(camera_id):
+@socketio.on('videostreams_get')
+def handle_videostreams_get(stream_name, ip_address):
     global thread
 
     with thread_lock:
         if thread is None:
-            thread = socketio.start_background_task(get_stream_thread, camera_id)
+            thread = socketio.start_background_task(videostreams_get_thread, stream_name, ip_address)
 
     socketio.emit(
-        f'connected_stream_{camera_id}', 
-        {'message': f'Now receiving data from Camera {camera_id}.'}
+        f'{stream_name}_console', 
+        {'message': f'Now receiving data from the camera {stream_name}.'}
     )
