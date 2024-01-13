@@ -80,6 +80,8 @@ def create_frame(camera_id, image):
         file.write(image)
 
 def videostreams_get_thread(stream_name, ip_address):
+    socketio.emit(f'{stream_name}_start', "true")
+
     while True:
         start = time.time()
 
@@ -139,7 +141,7 @@ def videostreams_get_thread(stream_name, ip_address):
         b64_image = str(base64.b64encode(buffer), encoding='utf-8')
 
         data = json.dumps({
-            'data': {
+            'information': {
                 'total_objects': total_objs,
                 'detected_labels': detected_labels,
                 'latency': time.time() - start
