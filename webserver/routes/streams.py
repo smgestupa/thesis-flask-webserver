@@ -70,8 +70,10 @@ def insert_detected_labels(detected_labels, labels_accuracy):
     conn.commit()
     conn.close()
 
-def create_frame(camera_id, image):
-    path = f'streams/frames/{camera_id}'
+def create_frame(ip_address, image):
+    b64_ip = str(base64.b64encode(ip_address.encode('utf-8')), encoding='utf-8')
+
+    path = f'streams/frames/{b64_ip}'
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -85,17 +87,15 @@ def videostreams_get_thread(stream_name, ip_address):
     while True:
         start = time.time()
 
-        camera_port = int(port) + camera_id
-
         raw_image = None
         
         retry = 0
-        while (retry < 3):
+        while (retry < 4):
             try:
-                frame = session.get(ip_address, timeout=10).content
+                raw_image = session.get(ip_address, timeout=10).content
             except:
                 raw_image = None
-                message = f'Could not retrieve image from {ip_address}. Retrying for {retry + 1} time(s)...'
+                message = f'Could not retrieve image from {ip_address}. Retrying... Number of retries: {retry}'
 
                 print(message)
                 socketio.emit(f'{stream_name}_console', message)
@@ -103,7 +103,7 @@ def videostreams_get_thread(stream_name, ip_address):
             retry += 1
 
         if raw_image == None:
-            message = f'Could not retrieve stream from Camera {camera_id}.'
+            message = f'Could not retrieve stream from {ip_address}.'
 
             print(message)
             socketio.emit(f'{stream_name}_console', message)
@@ -113,8 +113,8 @@ def videostreams_get_thread(stream_name, ip_address):
 
             break
 
-        image_bytes = np.asarray(raw_image, dtype=np.uint8)
-        image = cv2.imread(image_bytes, cv2.IMREAD_COLOR)
+        image_bytes = np.frombuffer(raw_image, dtype=np.uint8)
+        image = cv2.imdecode(image_bytes, cv2.IMREAD_COLOR)
 
         image = cv2.convertScaleAbs(image, alpha=1.15, beta=1.15)
 
@@ -165,5 +165,5 @@ def handle_videostreams_get(stream_name, ip_address):
 
     socketio.emit(
         f'{stream_name}_console', 
-        {'message': f'Now receiving data from the camera {stream_name}.'}
+        {'message': f'Trying to connect to the IP address: {ip_address}...'}
     )
